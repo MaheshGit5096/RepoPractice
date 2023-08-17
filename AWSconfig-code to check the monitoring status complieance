@@ -1,0 +1,45 @@
+import boto3
+import datetime
+
+def lambda_handler(event, context):
+    # Initialize the AWS SDK clients
+    ec2_client = boto3.client('ec2')
+    
+    # Get a list of all EC2 instances
+    response = ec2_client.describe_instances()
+    instances = response['Reservations']
+    
+    # Loop through each instance and check monitoring status
+    for instance in instances:
+        instance_id = instance['Instances'][0]['InstanceId']
+        monitoring_state = instance['Instances'][0]['Monitoring']['State']
+        
+        # Check if monitoring is enabled (detailed)
+        if monitoring_state == 'enabled':
+            update_compliance(instance_id, 'COMPLIANT', event)
+        else:
+            update_compliance(instance_id, 'NON_COMPLIANT', event)
+
+def update_compliance(instance_id, compliance_status, event):
+    config_client = boto3.client('config')
+    
+    evaluation = {
+        'ComplianceResourceType': 'AWS::EC2::Instance',
+        'ComplianceResourceId': instance_id,
+        'ComplianceType': compliance_status,
+        'Annotation': f"Instance {instance_id} is {compliance_status}",
+        'OrderingTimestamp': datetime.datetime.now()
+    }
+    
+    response = config_client.put_evaluations(
+        Evaluations=[evaluation],
+        ResultToken=event['resultToken']
+    )
+    
+    print(response)
+
+    # Here you can implement code to update the compliance status
+    # in a compliance management system or database.
+    # This is a placeholder example.
+    
+    print(f"Instance {instance_id} is {compliance_status}")
